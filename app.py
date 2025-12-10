@@ -3,72 +3,67 @@ import io
 import numpy as np
 from PIL import Image
 from flask import Flask, request, jsonify
-import tensorflow as tf
+from tensorflow.keras.models import load_model
 
 app = Flask(__name__)
 
-# ==== 1. LOAD MÔ HÌNH TEACHABLE MACHINE SAVEDMODEL ====
+# --- ĐƯỜNG DẪN MÔ HÌNH ĐÃ SỬA ---
+MODEL_DIR = "model/model.savedmodel"      # chứa saved_model.pb
+LABELS_PATH = "model/labels"              # file nhãn phải nằm trong /model/
 
-MODEL_DIR = "model"          # thư mục chứa saved_model.pb
-LABELS_PATH = "model/labels" # file nhãn
+# Kích thước ảnh TM (thường là 224x224)
+IMG_HEIGHT, IMG_WIDTH = 224, 224
 
+# --- LOAD MODEL ---
 try:
-    model = tf.saved_model.load(MODEL_DIR)
-    infer = model.signatures["serving_default"]
-    print("Loaded Teachable Machine model OK")
-    
-    # Đọc file nhãn
+    model = load_model(MODEL_DIR)
+    print(">>> ĐÃ TẢI MÔ HÌNH THÀNH CÔNG !")
+
+    # load labels
     with open(LABELS_PATH, "r") as f:
         class_names = [line.strip().split(" ", 1)[-1] for line in f.readlines()]
-    print("Labels:", class_names)
+    print(">>> Labels:", class_names)
 
 except Exception as e:
-    print("ERROR loading model:", e)
+    print("LỖI KHI TẢI MÔ HÌNH:", e)
     model = None
-    infer = None
     class_names = []
 
 
-# ==== 2. API NHẬN ẢNH TỪ ESP32 ====
-
+# --- API DỰ ĐOÁN ---
 @app.route("/predict", methods=["POST"])
 def predict():
     if model is None:
         return jsonify({"error": "Model not loaded"}), 500
 
+    if "image" not in request.files:
+        return jsonify({"error": "Image file missing"}), 400
+
     try:
-        # ESP32 gửi ảnh RAW (image/jpeg) trong body → dùng request.data
-        img_bytes = request.data
-        
-        img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+        file = request.files["image"]
+        image = Image.open(io.BytesIO(file.read())).convert("RGB")
+        image = image.resize((IMG_WIDTH, IMG_HEIGHT))
 
-        # Resize đúng chuẩn Teachable Machine (luôn 224x224)
-        img = img.resize((224, 224))
-        
-        x = np.array(img, dtype=np.float32) / 255.0
-        x = np.expand_dims(x, axis=0)
+        img_array = np.asarray(image, dtype=np.float32)
+        img_array = (img_array / 255.0).reshape(1, IMG_HEIGHT, IMG_WIDTH, 3)
 
-        x_tensor = tf.convert_to_tensor(x)
-
-        result = infer(x_tensor)
-
-        output = list(result.values())[0].numpy()[0]
-
-        idx = int(np.argmax(output))
-        confidence = float(output[idx])
-        label = class_names[idx]
+        predictions = model.predict(img_array)
+        score = float(np.max(predictions[0]))
+        class_id = int(np.argmax(predictions[0]))
+        class_name = class_names[class_id]
 
         return jsonify({
-            "class": label,
-            "confidence": confidence,
-            "index": idx
+            "status": "success",
+            "class": class_name,
+            "confidence": f"{score*100:.2f}%"
         })
 
     except Exception as e:
+        print("ERROR:", e)
         return jsonify({"error": str(e)}), 500
 
 
-# ==== 3. RUN SERVER (RENDER) ====
+# --- SERVER CHO RENDER ---
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
