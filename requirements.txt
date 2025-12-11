@@ -1,6 +1,4 @@
-flask
-tensorflow-cpu==2.20.0
-numpy
-pillow
-gunicorn
-
+Flask==2.3.2
+numpy==1.25.2
+Pillow==10.1.0
+tensorflow==2.14.0
