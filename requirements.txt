@@ -1,16 +1,6 @@
 # requirements.txt
-
-# Web server framework
 Flask
-
-# Thư viện xử lý mảng (dùng cho TFLite và ảnh)
 numpy
-
-# Thư viện xử lý ảnh (đọc file JPEG từ ESP32)
 Pillow
-
-# Thư viện TensorFlow Lite Interpreter để chạy mô hình .tflite
-# Sử dụng 'tensorflow' là an toàn nhất trên Render
-# Nếu bạn muốn nhẹ hơn nữa, có thể thử tflite-runtime, nhưng nó thường khó cài đặt trên các môi trường cloud generic.
 tensorflow
-
+gunicorn
