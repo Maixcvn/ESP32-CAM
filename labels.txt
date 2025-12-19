@@ -1,4 +1,3 @@
 0 nhua
 1 giay
 2 khac
-3 khong_co_rac
